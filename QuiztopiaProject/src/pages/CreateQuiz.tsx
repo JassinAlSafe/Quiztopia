@@ -1,150 +1,81 @@
-import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import React, { useState } from "react";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  useMapEvents,
+  Popup,
+} from "react-leaflet";
 import { useNavigate } from "react-router-dom";
+import { createQuiz, addQuestionsToQuiz } from "../services/quizService"; // Import the service functions
+import { useGeolocation } from "../hooks/useGeolocation"; // Import the custom hook for geolocation
+
+// Define the structure for a question's properties
+interface QuestionProps {
+  question: string;
+  answer: string;
+  coordinates: { lat: number; lng: number };
+}
 
 const CreateQuiz: React.FC = () => {
-  const [quizName, setQuizName] = useState<string>(""); // Updated to use "name"
-  const [question, setQuestion] = useState<{
-    question: string;
-    answer: string;
-    coordinates: { lat: number; lng: number };
-  }>({
+  const [quizName, setQuizName] = useState<string>("");
+  const [questions, setQuestions] = useState<QuestionProps[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState<QuestionProps>({
     question: "",
     answer: "",
     coordinates: { lat: 0, lng: 0 },
   });
-  const [currentLocation, setCurrentLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
   const [quizId, setQuizId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const currentLocation = useGeolocation(); // Use custom hook for geolocation
 
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCurrentLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-          console.log(
-            "User's location:",
-            position.coords.latitude,
-            position.coords.longitude
-          );
-        },
-        (error) => {
-          console.error("Failed to get user's location", error);
-          setCurrentLocation({ lat: 57.7089, lng: 11.9746 }); // Default to Gothenburg
-        }
-      );
-    } else {
-      console.error("Geolocation is not supported by this browser");
-      setCurrentLocation({ lat: 57.7089, lng: 11.9746 });
-    }
-  }, []);
-
-  const handleQuestionChange = (field: string, value: string) => {
-    setQuestion({ ...question, [field]: value });
+  const handleInputChange = (field: keyof QuestionProps, value: string) => {
+    setCurrentQuestion((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleMapClick = (lat: number, lng: number) => {
-    setQuestion({ ...question, coordinates: { lat, lng } });
+    setCurrentQuestion((prev) => ({ ...prev, coordinates: { lat, lng } }));
   };
 
-  const createQuiz = async () => {
-    console.log("Creating quiz with name:", quizName);
+  const addQuestionToList = () => {
+    if (currentQuestion.question && currentQuestion.answer) {
+      setQuestions((prev) => [...prev, currentQuestion]);
+      resetCurrentQuestion();
+    } else {
+      setError("Question and answer are required");
+    }
+  };
+
+  const resetCurrentQuestion = () => {
+    setCurrentQuestion({
+      question: "",
+      answer: "",
+      coordinates: { lat: 0, lng: 0 },
+    });
+    setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     const token = sessionStorage.getItem("token");
     if (!token) {
-      console.error("No token found in session storage");
       setError("You must be logged in to create a quiz");
       return;
     }
 
     try {
-      const response = await fetch(
-        "https://fk7zu3f4gj.execute-api.eu-north-1.amazonaws.com/quiz",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ name: quizName }), // Corrected to use "name"
-        }
-      );
-
-      const data = await response.json();
-      console.log("Quiz creation response:", data);
-
-      if (response.ok && data.success) {
-        console.log("Quiz created successfully:", data);
-        setQuizId(data.quizId); // Save the quizId to add questions later
-        return data.quizId;
-      } else {
-        console.error("Failed to create quiz:", data.error || "Unknown error");
-        setError(data.error || "Failed to create quiz. Please try again.");
+      let id = quizId;
+      if (!quizId) {
+        id = await createQuiz(quizName, token); // Use service function to create quiz
+        setQuizId(id);
       }
-    } catch (err) {
-      console.error("Error during quiz creation: ", err);
-      setError("Failed to create quiz. Please try again.");
-    }
-  };
-
-  const addQuestionToQuiz = async (quizId: string) => {
-    console.log("Adding question to quiz:", quizId);
-    const token = sessionStorage.getItem("token");
-    if (!token) {
-      console.error("No token found in session storage");
-      setError("You must be logged in to add a question");
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        "https://fk7zu3f4gj.execute-api.eu-north-1.amazonaws.com/quiz/question",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: quizName, // using name to identify the quiz
-            question: question.question,
-            answer: question.answer,
-            location: {
-              longitude: question.coordinates.lng.toString(),
-              latitude: question.coordinates.lat.toString(),
-            },
-          }),
-        }
-      );
-
-      const data = await response.json();
-      console.log("Add question response:", data);
-
-      if (response.ok && data.success) {
-        console.log("Question added successfully:", data);
-        navigate("/dashboard"); // Redirect after adding the question successfully
-      } else {
-        console.error("Failed to add question:", data.error || "Unknown error");
-        setError(data.error || "Failed to add question. Please try again.");
+      if (id) {
+        await addQuestionsToQuiz(quizName, questions, token); // Use service function to add questions
+        navigate("/dashboard"); // Redirect after adding questions
       }
-    } catch (err) {
-      console.error("Error during question addition: ", err);
-      setError("Failed to add question. Please try again.");
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const quizId = await createQuiz(); // Create the quiz first
-
-    if (quizId) {
-      await addQuestionToQuiz(quizId); // If quiz creation is successful, add questions
+    } catch (error: unknown) {
+      setError((error as Error).message);
     }
   };
 
@@ -180,24 +111,20 @@ const CreateQuiz: React.FC = () => {
               <input
                 type="text"
                 placeholder="Question"
-                value={question.question}
-                onChange={(e) =>
-                  handleQuestionChange("question", e.target.value)
-                }
+                value={currentQuestion.question}
+                onChange={(e) => handleInputChange("question", e.target.value)}
                 className="shadow appearance-none border rounded w-full py-2 px-3 mb-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               />
-
               <input
                 type="text"
                 placeholder="Answer"
-                value={question.answer}
-                onChange={(e) => handleQuestionChange("answer", e.target.value)}
+                value={currentQuestion.answer}
+                onChange={(e) => handleInputChange("answer", e.target.value)}
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               />
             </div>
           </div>
           <div className="mb-6">
-            {/* Display the map once the current location is set */}
             {currentLocation && (
               <div className="h-64 mt-4">
                 <MapContainer
@@ -206,19 +133,43 @@ const CreateQuiz: React.FC = () => {
                   style={{ height: "100%", width: "100%" }}
                 >
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  {question.coordinates.lat !== 0 &&
-                    question.coordinates.lng !== 0 && (
+                  <Marker position={[currentLocation.lat, currentLocation.lng]}>
+                    <Popup>
+                      <div
+                        style={{
+                          backgroundColor: "green",
+                          color: "#fff",
+                          padding: "10px",
+                          borderRadius: "8px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <h3 style={{ margin: 0 }}>Your Location</h3>
+                      </div>
+                    </Popup>
+                  </Marker>
+                  {currentQuestion.coordinates.lat !== 0 &&
+                    currentQuestion.coordinates.lng !== 0 && (
                       <Marker
                         position={[
-                          question.coordinates.lat,
-                          question.coordinates.lng,
+                          currentQuestion.coordinates.lat,
+                          currentQuestion.coordinates.lng,
                         ]}
-                      ></Marker>
+                      />
                     )}
                   <MapClickHandler onMapClick={handleMapClick} />
                 </MapContainer>
               </div>
             )}
+          </div>
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={addQuestionToList}
+              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Add Question
+            </button>
           </div>
           <div>
             <button
@@ -229,6 +180,22 @@ const CreateQuiz: React.FC = () => {
             </button>
           </div>
         </form>
+        {questions.length > 0 && (
+          <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+            <h3 className="mb-4 text-lg font-bold">Added Questions:</h3>
+            {questions.map((q, index) => (
+              <div key={index} className="mb-4">
+                <p className="font-bold">Question {index + 1}:</p>
+                <p>{q.question}</p>
+                <p className="text-gray-600">Answer: {q.answer}</p>
+                <p className="text-gray-600">
+                  Location: Lat {q.coordinates.lat}, Lng {q.coordinates.lng}
+                </p>
+                <hr className="my-2" />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -240,7 +207,6 @@ const MapClickHandler: React.FC<{
 }> = ({ onMapClick }) => {
   useMapEvents({
     click(e) {
-      console.log(`Map clicked at coordinates:`, e.latlng);
       onMapClick(e.latlng.lat, e.latlng.lng);
     },
   });
