@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import { useParams } from "react-router-dom";
 import { useQuizDetails } from "../hooks/useQuizDetails";
 
 const QuizDetail: React.FC = () => {
-  const { id: quizId, userId } = useParams<{ id: string; userId: string }>(); // Ensure both userId and quizId are correctly extracted
+  const { id: quizId, userId } = useParams<{ id: string; userId: string }>();
   const { quizDetails, error, loading } = useQuizDetails(userId, quizId);
 
 

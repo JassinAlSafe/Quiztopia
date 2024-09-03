@@ -77,9 +77,9 @@ const Dashboard: React.FC = () => {
       const response = await fetch(
         `https://fk7zu3f4gj.execute-api.eu-north-1.amazonaws.com/quiz/${quizId}`,
         {
-          method: "DELETE", // Use the DELETE HTTP method
+          method: "DELETE",
           headers: {
-            Authorization: `Bearer ${token}`, // Attach the token to the request headers
+            Authorization: `Bearer ${token}`,
           },
         }
       );
