@@ -1,6 +1,6 @@
 # Quiztopia
 
-Quiztopia is an interactive web application designed to enhance city exploration through quizzes based on your current location. Think of it as a GPS on steroids, combining location-based trivia and a game-like experience to make urban adventures fun and educational.
+Quiztopia is an interactive web application designed to enhance city exploration through quizzes based on your current location. 
 
 ## Demo
 Check out the live demo of Quiztopia [here](https://quiztopia-ow67p63er-cakewhale97s-projects.vercel.app).
